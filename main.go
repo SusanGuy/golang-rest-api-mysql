@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -57,7 +58,7 @@ func getOrder(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Get Single Order Route Hit")
 	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(r)
-	inputOrderID := params["orderId"]
+	inputOrderID := params["orderID"]
 	var order Order
 	db.Preload("Items").First(&order, inputOrderID)
 	json.NewEncoder(w).Encode(order)
@@ -71,9 +72,21 @@ func getOrders(w http.ResponseWriter, r *http.Request) {
 }
 func updateOrder(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Update Order Route Hit")
+	var updatedOrder Order
+	json.NewDecoder(r.Body).Decode(&updatedOrder)
+	db.Save(&updatedOrder)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(updatedOrder)
 }
 func deleteOrder(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Delete Order Route Hit")
+	params := mux.Vars(r)
+	orderID := params["orderID"]
+	id64, _ := strconv.ParseUint(orderID, 10, 64)
+	idToDelete := uint(id64)
+	db.Where("order_id=?", idToDelete).Delete(&Item{})
+	db.Where("order_id=?", idToDelete).Delete(&Order{})
+	w.WriteHeader(http.StatusNoContent)
 }
 func main() {
 	initDB()
@@ -81,7 +94,7 @@ func main() {
 	router.HandleFunc("/orders", createOrder).Methods("POST")
 	router.HandleFunc("/orders/{orderID}", getOrder).Methods("GET")
 	router.HandleFunc("/orders", getOrders).Methods("GET")
-	router.HandleFunc("/orders/{orderID}", updateOrder).Methods("PUT")
+	router.HandleFunc("/orders", updateOrder).Methods("PUT")
 	router.HandleFunc("/orders/{orderID}", deleteOrder).Methods("DELETE")
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
